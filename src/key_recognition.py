@@ -42,6 +42,10 @@ def get_args():
     arg_parser.add_argument('--n_iter', default=100, type=int, help='''
         (Maximum) amount of iterations used in HMM training.
         ''')
+    arg_parser.add_argument('--min_conf', default=0, type=int, help='''
+        Minimum confidence level for the predicted key of the samples in the 
+        data.Expressed in a percentage integer, i.e. between 0 and 100.
+        ''')
     sub_parsers = arg_parser.add_subparsers(dest='method')
     sub_parsers.required = True
 
@@ -70,23 +74,39 @@ def load_data_dict(data_dir, track_ids):
         testing_data[track_id] = analysis
     return testing_data
 
-def collect_data(data_dir, test_split, test_split_index=0 , verbose=False, dry=False, subset=10000):
+def collect_data(data_dir, test_split, test_split_index=0 , verbose=False,
+    dry=False, subset=10000, min_conf=0):
     track_list = TrackList.load_from_dir(data_dir)
     all_tracks = track_list.get_track_ids()
-    n = len(all_tracks)
+    N = len(all_tracks)
     if dry: # use virtually no data at all - just test the program execution
-        n = subset
+        N = subset
+
+    # Load all data
+    if verbose:
+        print("Collecting data...")
+    data = load_data_dict(data_dir, np.array(all_tracks))
+
+    # Filter by minimum confidence level
+    data_minconf = dict()
+    for (track_id, track) in data.items():
+        if track['key_confidence'] >= min_conf / 100:
+            data_minconf[track_id] = track
+
+    # k-fold CV splits
+    n = np.min([N, len(data_minconf)])
     chunks = np.array_split(np.arange(n), test_split)
     test_split =  chunks[test_split_index]
     train_split = np.concatenate(chunks[:test_split_index] + chunks[test_split_index+1:])
+
+    # Split data
+    trackids = np.array(list(data_minconf.keys()))
+    tracks   = np.array(list(data_minconf.values()))
+    testing_data  = dict(zip(trackids[test_split], tracks[test_split]))
+    training_data = dict(zip(trackids[train_split], tracks[train_split]))
+
     if verbose:
-        print("Collecting training data...")
-    training_data = load_data_dict(data_dir, np.array(all_tracks)[train_split])
-    if verbose:
-        print("Collecting testing data...")
-    testing_data = load_data_dict(data_dir, np.array(all_tracks)[test_split])
-    if verbose:
-        print("Data collected.")
+        print("Data collected. [min_conf={}, n={}, N={}]".format(min_conf, n, N))
     return training_data, testing_data
 
 
@@ -107,7 +127,12 @@ def run_key_recognition(args, verbose=True, test_split_index=0):
         pass
     
     # Collect data
-    training_data, testing_data = collect_data(args.data_dir, args.test_split, test_split_index=test_split_index, verbose=verbose, dry=args.dry, subset=args.subset)
+    training_data, testing_data = collect_data(args.data_dir, args.test_split,
+        test_split_index=test_split_index,
+        verbose=verbose,
+        dry=args.dry,
+        subset=args.subset,
+        min_conf=args.min_conf)
 
     # Train model
     if args.method != 'naive' or not args.no_training:
