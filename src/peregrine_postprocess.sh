@@ -7,6 +7,7 @@ for filename in logs/slurm-$1*; do
     # CPU- and walltime
     walltime=$(grep $filename -e 'Used walltime       :' | cut -d":" -f 2- | awk '{$1=$1};1')
     cputime=$(grep $filename -e 'Used CPU time       :' | cut -d":" -f 2- | awk '{$1=$1};1' | cut -d" " -f1)
+    # n=$(grep -Eow ' n=([0-9]+), N' $filename | grep -Eow '[0-9]+' | head -n 1) # subset size. only for 17902559
     # Store error % per fold
     fold=1
     errors=$(cat $filename\
