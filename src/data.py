@@ -194,15 +194,15 @@ def fetch(output_dir):
     if not exists(get_data_dir(output_dir, AUDIO_ANALYSIS)):
         makedirs(get_data_dir(output_dir, AUDIO_ANALYSIS))
     track_analyses = n_track_analyses_generator(track_ids)
-    count = 0
+    count = 0 + count_data_points(output_dir, AUDIO_ANALYSIS)
     for track_analysis in track_analyses:
         if 'track_not_found' in track_analysis:
             _track_list.remove_track_id(track_analysis['track_not_found'])
             print(f"removed {track_analysis['track_not_found']} from dataset")
             continue
         count += 1
-        spinner.start(f'Fetching tracks ({count / _track_list.get_desired_tracks_amount():.2f}%)')
         extracted = extract_track_analysis(track_analysis)
+        spinner.text = f'Fetching tracks ({(count / _track_list.get_desired_tracks_amount()) * 100:.2f}%)'
         store_extracted_analysis(output_dir, extracted)
     spinner.stop()
     _track_list.dump(output_dir)
